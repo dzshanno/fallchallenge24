@@ -37,6 +37,12 @@ class building:
         self.pos = pos
         self.conns = 0
 
+    def __lt__(self, other):
+        if self.id < other.id:
+            return True
+        else:
+            return False
+
 
 class tube:
     def __init__(self, b1: building, b2: building, cap: int) -> None:
@@ -92,13 +98,25 @@ def tubecost(b1, b2):
     return cost
 
 
+def nearest_buildings(pad):
+    blist = []
+    for b in buildings:
+        distance = dist(pad.pos, b.pos)
+        blist.append((distance, b))
+    blist = sorted(blist)
+    output = []
+    for b in blist:
+        output.append(b[1])
+    return output
+
+
 def addactions():
     global resources, nextpod
     if resources > 0:
         for p in pads:
             if p.conns < 5:
-                for a in p.astros:
-                    for b in buildings:
+                for b in nearest_buildings(p):
+                    for a in p.astros:
                         if b.conns < 5:
                             if len(actions) > 20:
                                 return
@@ -221,9 +239,10 @@ while True:
     addactions()
     add_teleport()
 
+    # work to closest buildings first
     # calculate cost of action
     # predict value of action
-    # add teleport
+
     # add upgrade
 
     output = ";".join(actions)
