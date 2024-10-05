@@ -117,8 +117,8 @@ def addactions():
             if p.conns < 5:
                 for b in nearest_buildings(p):
                     for a in p.astros:
-                        if b.conns < 5:
-                            if len(actions) > 20:
+                        if b.conns < 5 and p.conns < 5:
+                            if len(actions) > 50:
                                 return
 
                             if int(b.type) == int(a):
@@ -164,20 +164,14 @@ def addactions():
                                         resources -= 1000
                                         nextpod += 1
 
-        # build teleport if enough resources exist
-        if resources > 5000:
-            for t in tubes:
-                actions.append("TELEPORT " + str(t.b1) + " " + str(t.b2))
-                resources -= 5000
-
 
 def add_teleport():
     global resources
     # build teleport if enough resources exist
 
     for p in pads:
-        for b in buildings:
-            if resources < 5000:
+        for b in reversed(nearest_buildings(p)):
+            if resources < 20000:
                 return
             if str(b.type) in p.astros:
                 port_exists = False
@@ -237,7 +231,7 @@ while True:
     # link pads and buildings
 
     addactions()
-    add_teleport()
+    # add_teleport()
 
     # work to closest buildings first
     # calculate cost of action
