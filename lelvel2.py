@@ -72,7 +72,7 @@ class port:
 
 
 def dist(b1, b2) -> float:
-    d = math.sqrt((b1.x - b2.x) ** 2 + (b1.y - b2.y) ** 2)
+    d = math.sqrt(((b1.x - b2.x) ** 2) + ((b1.y - b2.y) ** 2))
     return d
 
 
@@ -89,8 +89,52 @@ def cmb(pad, astro) -> building:
     return bestb
 
 
-def point_intersect():
-    pass
+def blocked_tube(b1, b2):
+    for b in buildings:
+        if point_intersect(b.pos, b1.pos, b2.pos) and b != b1 and b != b2:
+            print(
+                "tube: "
+                + str(b1.id)
+                + ":"
+                + str(b2.id)
+                + " blocked by building "
+                + str(b.id),
+                file=sys.stderr,
+                flush=True,
+            )
+            print(
+                "dist: "
+                + str(b1.id)
+                + ":"
+                + str(b2.id)
+                + " is "
+                + str(dist(b1.pos, b2.pos)),
+                file=sys.stderr,
+                flush=True,
+            )
+
+            return True
+    for p in pads:
+        if point_intersect(p.pos, b1.pos, b2.pos) and p != b1 and p != b2:
+            print(
+                "tube: "
+                + str(b1.id)
+                + ":"
+                + str(b2.id)
+                + " blocked by pad"
+                + str(b.id),
+                file=sys.stderr,
+                flush=True,
+            )
+            return True
+    return False
+
+
+def point_intersect(A, B, C):
+    # is position A on the line between position B and position C
+    epsilon = 0.0000001
+    onpath = -epsilon < dist(B, A) + dist(A, C) - dist(B, C) < epsilon
+    return onpath
 
 
 def tubecost(b1, b2):
@@ -104,10 +148,10 @@ def nearest_buildings(pad):
         distance = dist(pad.pos, b.pos)
         blist.append((distance, b))
     blist = sorted(blist)
-    output = []
+    output2 = []
     for b in blist:
-        output.append(b[1])
-    return output
+        output2.append(b[1])
+    return output2
 
 
 def addactions():
@@ -115,10 +159,12 @@ def addactions():
     if resources > 0:
         for p in pads:
             if p.conns < 5:
+                print("checking pad " + str(p.id), file=sys.stderr, flush=True)
                 for b in nearest_buildings(p):
                     for a in p.astros:
                         if b.conns < 5 and p.conns < 5:
-                            if len(actions) > 50:
+                            if len(actions) > 500:
+                                print("toomany actions ", file=sys.stderr, flush=True)
                                 return
 
                             if int(b.type) == int(a):
@@ -134,12 +180,19 @@ def addactions():
                                         )
                                     ):
                                         tube_exists = True
-                                if tube_exists == False:
+                                if tube_exists == False and not blocked_tube(p, b):
                                     actions.append(
                                         "TUBE " + str(p.id) + " " + str(b.id)
                                     )
-                                    # tubes.append(tube(p.id, b.id, 1))
+                                    tubes.append(tube(p.id, b.id, 1))
                                     resources -= tubecost(p, b)
+                                    print(
+                                        "resources now: " + str(resources),
+                                        file=sys.stderr,
+                                        flush=True,
+                                    )
+
+                                    # TODO reset conns when connection doesnt go through
                                     p.conns += 1
                                     b.conns += 1
 
@@ -149,8 +202,10 @@ def addactions():
                                         if str(p.id) in str(pp.path) and str(
                                             b.id
                                         ) in str(pp.path):
+                                            # print("path between "+str(p.id)+" and "+str(b.id)+ " exists with pod "+str(pp.id)+" path:"+str(pp.path), file=sys.stderr, flush=True)
                                             pod_exists = True
                                     if pod_exists == False:
+
                                         actions.append(
                                             "POD "
                                             + str(nextpod)
@@ -161,6 +216,17 @@ def addactions():
                                             + " "
                                             + str(p.id)
                                         )
+                                        pods.append(
+                                            pod(
+                                                nextpod,
+                                                str(p.id)
+                                                + " "
+                                                + str(b.id)
+                                                + " "
+                                                + str(p.id),
+                                            )
+                                        )
+                                        # print("create pod: "+str(nextpod)+" - "+str(p.id)+":"+str(b.id), file=sys.stderr, flush=True)
                                         resources -= 1000
                                         nextpod += 1
 
@@ -204,18 +270,31 @@ while True:
 
     resources = int(input())
     num_travel_routes = int(input())
+
+    # reset conns numbers
+    for b in buildings:
+        b.conns = 0
+    for p in pads:
+        p.conns = 0
+
     for i in range(num_travel_routes):
         building_id_1, building_id_2, capacity = [int(j) for j in input().split()]
         if capacity == 0:
             ports.append(port(building_id_1, building_id_2))
         else:
             tubes.append(tube(building_id_1, building_id_2, capacity))
+            for p in pads:
+                if p.id == building_id_1 or p.id == building_id_2:
+                    p.conns += 1
+            for b in buildings:
+                if b.id == building_id_1 or b.id == building_id_2:
+                    b.conns += 1
 
     num_pods = int(input())
-
     for i in range(num_pods):
-        p_props = input()
+        p_props = input().split()
         pods.append(pod(int(p_props[0]), p_props[2:]))
+
     num_new_buildings = int(input())
     for i in range(num_new_buildings):
         bp = input().split()
