@@ -112,13 +112,16 @@ class action:
 
 
 class building:
-    def __init__(self, id: int, type: int, pos: position, astros: list = []) -> None:
+    def __init__(
+        self, id: int, type: int, pos: position, astrotypes: list = []
+    ) -> None:
         self.id = id
         self.type = type
         self.pos = pos
         self.conns = 0
-        self.astros = astros
+        self.astrotypes = astrotypes
         self.homed = []
+        self.canreach = []
 
     def __str__(self) -> str:
         return str(self.id)
@@ -202,31 +205,52 @@ def pathexists(b1, b2):
     return False
 
 
-def nearest_buildings(pad: building):
+def nearest_buildings(pad: building, astrotype: int):
     blist = []
     for b in buildings:
         distance = dist(pad.pos, b.pos)
-        blist.append((distance, b))
+        print(
+            "looking for " + str(astrotype) + " in " + str(b.canreach),
+            file=sys.stderr,
+            flush=True,
+        )
+        if astrotype in b.canreach:
+            blist.append((distance, b))
     blist = sorted(blist)
     output2 = []
     for b in blist:
         output2.append(b[1])
-    # print("buildings in order " + str(output2), file=sys.stderr, flush=True)
+    print("buildings in order " + str(output2), file=sys.stderr, flush=True)
     return output2
+
+
+def looking_for_homes():
+    clist = []
+    for b in buildings:
+        if b.astrotypes != []:
+            clist.append(b)
+    return clist
 
 
 def addactions():
     global resources, nextpod
 
     if resources > 0:
-        for p in pads:
-            # print("checking pad " + str(p.id), file=sys.stderr, flush=True)
-            for b in nearest_buildings(p):
-                if b.conns >= 5 or p.conns >= 5:
-                    # print("5 connections already ", file=sys.stderr, flush=True)
-                    continue
-                # print("checking "+str(len(p.astros))+" astros from pad " + str(p.id), file=sys.stderr, flush=True)
-                for a in p.astros:
+        for p in looking_for_homes():
+            print("checking pad " + str(p.id), file=sys.stderr, flush=True)
+            for a in p.astrotypes:
+                for b in nearest_buildings(p, a):
+                    if b.conns >= 5 or p.conns >= 5:
+                        # print("5 connections already ", file=sys.stderr, flush=True)
+                        continue
+                    print(
+                        "checking "
+                        + str(len(p.astrotypes))
+                        + " astros from pad "
+                        + str(p.id),
+                        file=sys.stderr,
+                        flush=True,
+                    )
 
                     if len(actions) > 500:
                         print("too many actions ", file=sys.stderr, flush=True)
@@ -238,12 +262,21 @@ def addactions():
                             if (str(t.b1) == str(p.id) and str(t.b2) == str(b.id)) or (
                                 (str(t.b2) == str(p.id) and str(t.b1) == str(b.id))
                             ):
-                                # print("tube "+str(t.b1)+":"+str(t.b2)+" exists ", file=sys.stderr, flush=True)
+                                print(
+                                    "tube " + str(t.b1) + ":" + str(t.b2) + " exists ",
+                                    file=sys.stderr,
+                                    flush=True,
+                                )
                                 tube_exists = True
                         if tube_exists == False and not blocked_tube(p, b):
                             actions.append("TUBE " + str(p.id) + " " + str(b.id))
                             tubes.append(tube(p, b, 1))
                             resources -= tubecost(p, b)
+                            print(
+                                "added tube " + str(p) + ":" + str(b),
+                                file=sys.stderr,
+                                flush=True,
+                            )
 
                             # TODO reset conns when connection doesnt go through
                             p.conns += 1
@@ -289,6 +322,10 @@ def addactions():
                                     file=sys.stderr,
                                     flush=True,
                                 )
+                                # p.astrotypes.remove(a)
+                                p.homed.append(a)
+                                p.canreach.append(a)
+                                b.canreach.append(a)
                                 resources -= 1000
                                 nextpod += 1
 
@@ -301,7 +338,7 @@ def add_teleport():
         for b in reversed(nearest_buildings(p)):
             if resources < 20000:
                 return
-            if str(b.type) in p.astros:
+            if str(b.type) in p.astrotypes:
                 port_exists = False
                 for por in ports:
                     if (
@@ -365,19 +402,25 @@ while True:
     for i in range(num_new_buildings):
         bp = input().split()
         if bp[0] == "0":
-            buildings.append(
-                building(
-                    int(bp[1]), int(bp[0]), position(int(bp[2]), int(bp[3])), bp[5:]
-                )
+            astrotypes = list(set(bp[5:]))
+            astrotypes = [int(a) for a in astrotypes]
+            new_building = building(
+                int(bp[1]), int(bp[0]), position(int(bp[2]), int(bp[3])), astrotypes
             )
+            new_building.canreach.append(new_building.type)
+            print("created building " + str(new_building), file=sys.stderr, flush=True)
+            buildings.append(new_building)
         else:
-            buildings.append(
-                building(int(bp[1]), int(bp[0]), position(int(bp[2]), int(bp[3])))
+            new_building = building(
+                int(bp[1]), int(bp[0]), position(int(bp[2]), int(bp[3]))
             )
+            new_building.canreach.append(new_building.type)
+            print("created building " + str(new_building), file=sys.stderr, flush=True)
+            buildings.append(new_building)
 
     # link pads and buildings
     for b in buildings:
-        if b.type == 0:
+        if b.astrotypes != 0:
             pads.append(b)
             # print("created " + str(len(pads))+" pods ", file=sys.stderr, flush=True)
 
