@@ -256,78 +256,77 @@ def addactions():
                         print("too many actions ", file=sys.stderr, flush=True)
                         return
 
-                    if int(b.type) == int(a):
-                        tube_exists = False
-                        for t in tubes:
-                            if (str(t.b1) == str(p.id) and str(t.b2) == str(b.id)) or (
-                                (str(t.b2) == str(p.id) and str(t.b1) == str(b.id))
-                            ):
-                                print(
-                                    "tube " + str(t.b1) + ":" + str(t.b2) + " exists ",
-                                    file=sys.stderr,
-                                    flush=True,
-                                )
-                                tube_exists = True
-                        if tube_exists == False and not blocked_tube(p, b):
-                            actions.append("TUBE " + str(p.id) + " " + str(b.id))
-                            tubes.append(tube(p, b, 1))
-                            resources -= tubecost(p, b)
+                    tube_exists = False
+                    for t in tubes:
+                        if (str(t.b1) == str(p.id) and str(t.b2) == str(b.id)) or (
+                            (str(t.b2) == str(p.id) and str(t.b1) == str(b.id))
+                        ):
                             print(
-                                "added tube " + str(p) + ":" + str(b),
+                                "tube " + str(t.b1) + ":" + str(t.b2) + " exists ",
                                 file=sys.stderr,
                                 flush=True,
                             )
+                            tube_exists = True
+                    if tube_exists == False and not blocked_tube(p, b):
+                        actions.append("TUBE " + str(p.id) + " " + str(b.id))
+                        tubes.append(tube(p, b, 1))
+                        resources -= tubecost(p, b)
+                        print(
+                            "added tube " + str(p) + ":" + str(b),
+                            file=sys.stderr,
+                            flush=True,
+                        )
 
-                            # TODO reset conns when connection doesnt go through
-                            p.conns += 1
-                            b.conns += 1
+                        # TODO reset conns when connection doesnt go through
+                        p.conns += 1
+                        b.conns += 1
 
-                        if resources >= 1000:
-                            pod_exists = False
-                            for pp in pods:
-                                if p.id in pp.path and b.id in pp.path:
-                                    print(
-                                        "path between "
-                                        + str(p.id)
-                                        + " and "
-                                        + str(b.id)
-                                        + " exists with pod "
-                                        + str(pp.id)
-                                        + " path:"
-                                        + str(pp.path),
-                                        file=sys.stderr,
-                                        flush=True,
-                                    )
-                                    pod_exists = True
-                            if pod_exists == False and pathexists(p, b):
-
-                                actions.append(
-                                    "POD "
-                                    + str(nextpod)
-                                    + " "
-                                    + str(p.id)
-                                    + " "
-                                    + str(b.id)
-                                    + " "
-                                    + str(p.id)
-                                )
-                                pods.append(pod(nextpod, [p.id, b.id, p.id]))
+                    if resources >= 1000:
+                        pod_exists = False
+                        for pp in pods:
+                            if p.id in pp.path and b.id in pp.path:
                                 print(
-                                    "create pod: "
-                                    + str(nextpod)
-                                    + " - "
+                                    "path between "
                                     + str(p.id)
-                                    + ":"
-                                    + str(b.id),
+                                    + " and "
+                                    + str(b.id)
+                                    + " exists with pod "
+                                    + str(pp.id)
+                                    + " path:"
+                                    + str(pp.path),
                                     file=sys.stderr,
                                     flush=True,
                                 )
-                                # p.astrotypes.remove(a)
-                                p.homed.append(a)
-                                p.canreach.append(a)
-                                b.canreach.append(a)
-                                resources -= 1000
-                                nextpod += 1
+                                pod_exists = True
+                        if pod_exists == False and pathexists(p, b):
+
+                            actions.append(
+                                "POD "
+                                + str(nextpod)
+                                + " "
+                                + str(p.id)
+                                + " "
+                                + str(b.id)
+                                + " "
+                                + str(p.id)
+                            )
+                            pods.append(pod(nextpod, [p.id, b.id, p.id]))
+                            print(
+                                "create pod: "
+                                + str(nextpod)
+                                + " - "
+                                + str(p.id)
+                                + ":"
+                                + str(b.id),
+                                file=sys.stderr,
+                                flush=True,
+                            )
+                            # p.astrotypes.remove(a)
+                            p.homed.append(a)
+                            p.canreach.append(a)
+                            b.canreach.append(a)
+                            resources -= 1000
+                            nextpod += 1
 
 
 def add_teleport():
