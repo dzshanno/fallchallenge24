@@ -1,5 +1,6 @@
 import sys
 import math
+from operator import add
 
 
 class position:
@@ -112,16 +113,16 @@ class action:
 
 
 class building:
-    def __init__(
-        self, id: int, type: int, pos: position, astrotypes: list = []
-    ) -> None:
+    def __init__(self, id: int, type: int, pos: position) -> None:
         self.id = id
         self.type = type
         self.pos = pos
         self.conns = 0
-        self.astrotypes = astrotypes
         self.homed = []
-        self.canreach = []
+        self.demand = []
+        self.supply = []
+        for i in range(21):
+            self.supply.append(0)
 
     def __str__(self) -> str:
         return str(self.id)
@@ -141,6 +142,12 @@ class tube:
         self.b1 = b1
         self.b2 = b2
         self.cap = cap
+
+    def __lt__(self, other):
+        if self.b1.id < other.b1.id:
+            return True
+        else:
+            return False
 
 
 class pod:
@@ -174,12 +181,12 @@ def cmb(pad, astro) -> building:
 
 
 def blocked_tube(b1, b2):
-    for b in buildings:
+    for b in nearest_buildings(b1):
         if point_intersect(b.pos, b1.pos, b2.pos) and b != b1 and b != b2:
 
             return True
 
-    for t in tubes:
+    for t in nearest_tubes(b1):
         if lineIntersect(t.b1.pos, t.b2.pos, b1.pos, b2.pos):
 
             return True
@@ -205,29 +212,89 @@ def pathexists(b1, b2):
     return False
 
 
-def nearest_buildings(pad: building, astrotype: int):
+def nearest_access_for_reqd_types(b1: building):
+    alist = []
+    for type, num in enumerate(b1.supply):
+        if num == 0:
+            continue
+        mindist = 10000
+        minb = buildings[0]
+        for b2 in buildings:
+            if type in b2.demand and b1 != b2:
+                newdist = dist(b1.pos, b2.pos)
+                if newdist < mindist:
+                    mindist = newdist
+                    minb = b2
+        alist.append((mindist, minb, type))
+    alist = sorted(alist)
+    output = [(b[1], b[2]) for b in alist]
+    return output
+
+
+def nearest_building_for_max_supply(b1: building):
+    alist = []
+    for type, num in enumerate(b1.supply):
+        if num == 0:
+            continue
+        maxsupply = 0
+        maxb = buildings[0]
+        for b2 in buildings:
+            if type in b2.demand and b1 != b2:
+                # if not blocked_tube(b1,b2):
+                newsupply = num
+                if newsupply > maxsupply:
+                    maxsupply = newsupply
+                    maxb = b2
+        alist.append((maxsupply, maxb, type))
+    alist = sorted(alist, reverse=True)
+    output = [(b[1], b[2]) for b in alist]
+    return output
+
+
+def nearest_building_for_max_supply2(b1: building):
+    alist = []
+    for type, num in enumerate(b1.supply):
+        if num == 0:
+            continue
+        for b2 in buildings:
+            if type in b2.demand and b1 != b2:
+                # if not blocked_tube(b1,b2):
+                newdist = dist(b1.pos, b2.pos)
+                alist.append((num, newdist, b2, type))
+
+    alist.sort(key=lambda d: (-d[0], d[1]))
+    output = [(b[2], b[3]) for b in alist]
+    return output
+
+
+def nearest_buildings(b1: building):
     blist = []
     for b in buildings:
-        distance = dist(pad.pos, b.pos)
-        print(
-            "looking for " + str(astrotype) + " in " + str(b.canreach),
-            file=sys.stderr,
-            flush=True,
-        )
-        if astrotype in b.canreach:
-            blist.append((distance, b))
+        distance = dist(b1.pos, b.pos)
+        blist.append((distance, b))
     blist = sorted(blist)
     output2 = []
     for b in blist:
         output2.append(b[1])
-    print("buildings in order " + str(output2), file=sys.stderr, flush=True)
+    return output2
+
+
+def nearest_tubes(b1: building):
+    tlist = []
+    for t in tubes:
+        distance = dist(b1.pos, t.b1.pos)
+        tlist.append((distance, t))
+    tlist = sorted(tlist)
+    output2 = []
+    for t in tlist:
+        output2.append(t[1])
     return output2
 
 
 def looking_for_homes():
     clist = []
     for b in buildings:
-        if b.astrotypes != []:
+        if sum(b.supply) != 0:
             clist.append(b)
     return clist
 
@@ -237,120 +304,55 @@ def addactions():
 
     if resources > 0:
         for p in looking_for_homes():
-            print("checking pad " + str(p.id), file=sys.stderr, flush=True)
-            for a in p.astrotypes:
-                for b in nearest_buildings(p, a):
-                    if b.conns >= 5 or p.conns >= 5:
-                        # print("5 connections already ", file=sys.stderr, flush=True)
-                        continue
-                    print(
-                        "checking "
-                        + str(len(p.astrotypes))
-                        + " astros from pad "
-                        + str(p.id),
-                        file=sys.stderr,
-                        flush=True,
-                    )
+            for b, a in nearest_building_for_max_supply2(p):
+                if b.conns >= 5 or p.conns >= 5:
+                    # print("5 connections already ", file=sys.stderr, flush=True)
+                    continue
 
-                    if len(actions) > 500:
-                        print("too many actions ", file=sys.stderr, flush=True)
-                        return
+                if len(actions) > 500:
+                    print("too many actions ", file=sys.stderr, flush=True)
+                    return
 
-                    tube_exists = False
-                    for t in tubes:
-                        if (str(t.b1) == str(p.id) and str(t.b2) == str(b.id)) or (
-                            (str(t.b2) == str(p.id) and str(t.b1) == str(b.id))
-                        ):
-                            print(
-                                "tube " + str(t.b1) + ":" + str(t.b2) + " exists ",
-                                file=sys.stderr,
-                                flush=True,
-                            )
-                            tube_exists = True
-                    if tube_exists == False and not blocked_tube(p, b):
-                        actions.append("TUBE " + str(p.id) + " " + str(b.id))
-                        tubes.append(tube(p, b, 1))
-                        resources -= tubecost(p, b)
-                        print(
-                            "added tube " + str(p) + ":" + str(b),
-                            file=sys.stderr,
-                            flush=True,
-                        )
-
-                        # TODO reset conns when connection doesnt go through
-                        p.conns += 1
-                        b.conns += 1
-
-                    if resources >= 1000:
-                        pod_exists = False
-                        for pp in pods:
-                            if p.id in pp.path and b.id in pp.path:
-                                print(
-                                    "path between "
-                                    + str(p.id)
-                                    + " and "
-                                    + str(b.id)
-                                    + " exists with pod "
-                                    + str(pp.id)
-                                    + " path:"
-                                    + str(pp.path),
-                                    file=sys.stderr,
-                                    flush=True,
-                                )
-                                pod_exists = True
-                        if pod_exists == False and pathexists(p, b):
-
-                            actions.append(
-                                "POD "
-                                + str(nextpod)
-                                + " "
-                                + str(p.id)
-                                + " "
-                                + str(b.id)
-                                + " "
-                                + str(p.id)
-                            )
-                            pods.append(pod(nextpod, [p.id, b.id, p.id]))
-                            print(
-                                "create pod: "
-                                + str(nextpod)
-                                + " - "
-                                + str(p.id)
-                                + ":"
-                                + str(b.id),
-                                file=sys.stderr,
-                                flush=True,
-                            )
-                            # p.astrotypes.remove(a)
-                            p.homed.append(a)
-                            p.canreach.append(a)
-                            b.canreach.append(a)
-                            resources -= 1000
-                            nextpod += 1
-
-
-def add_teleport():
-    global resources
-    # build teleport if enough resources exist
-
-    for p in pads:
-        for b in reversed(nearest_buildings(p)):
-            if resources < 20000:
-                return
-            if str(b.type) in p.astrotypes:
-                port_exists = False
-                for por in ports:
-                    if (
-                        por.b1 == p.id
-                        or por.b1 == b.id
-                        or por.b2 == p.id
-                        or por.b2 == b.id
+                tube_exists = False
+                for t in tubes:
+                    if (str(t.b1) == str(p.id) and str(t.b2) == str(b.id)) or (
+                        (str(t.b2) == str(p.id) and str(t.b1) == str(b.id))
                     ):
-                        port_exists = True
-                if port_exists == False:
-                    actions.append("TELEPORT " + str(p.id) + " " + str(b.id))
-                    ports.append(port(p.id, b.id))
-                    resources -= 5000
+                        tube_exists = True
+                if tube_exists == False and not blocked_tube(p, b):
+                    actions.append("TUBE " + str(p.id) + " " + str(b.id))
+                    tubes.append(tube(p, b, 1))
+                    resources -= tubecost(p, b)
+
+                    # TODO reset conns when connection doesnt go through
+                    p.conns += 1
+                    b.conns += 1
+
+                if resources >= 1000:
+                    pod_exists = False
+                    for pp in pods:
+                        if p.id in pp.path and b.id in pp.path:
+
+                            pod_exists = True
+                    if pod_exists == False and pathexists(p, b):
+
+                        actions.append(
+                            "POD "
+                            + str(nextpod)
+                            + " "
+                            + str(p.id)
+                            + " "
+                            + str(b.id)
+                            + " "
+                            + str(p.id)
+                        )
+                        pods.append(pod(nextpod, [p.id, b.id, p.id]))
+
+                        # p.astrotypes.remove(a)
+                        p.demand.append(a)
+                        b.supply = list(map(add, p.supply, b.supply))
+                        resources -= 1000
+                        nextpod += 1
 
 
 def find_building_from_id(id: int) -> building:
@@ -400,26 +402,23 @@ while True:
     num_new_buildings = int(input())
     for i in range(num_new_buildings):
         bp = input().split()
+        new_building = building(
+            int(bp[1]), int(bp[0]), position(int(bp[2]), int(bp[3]))
+        )
+
         if bp[0] == "0":
-            astrotypes = list(set(bp[5:]))
-            astrotypes = [int(a) for a in astrotypes]
-            new_building = building(
-                int(bp[1]), int(bp[0]), position(int(bp[2]), int(bp[3])), astrotypes
-            )
-            new_building.canreach.append(new_building.type)
-            print("created building " + str(new_building), file=sys.stderr, flush=True)
-            buildings.append(new_building)
+            astros = bp[5:]
+            for a in astros:
+                new_building.supply[int(a)] += 1
         else:
-            new_building = building(
-                int(bp[1]), int(bp[0]), position(int(bp[2]), int(bp[3]))
-            )
-            new_building.canreach.append(new_building.type)
-            print("created building " + str(new_building), file=sys.stderr, flush=True)
-            buildings.append(new_building)
+            new_building.demand.append(new_building.type)
+
+        # print("created building " + str(new_building), file=sys.stderr, flush=True)
+        buildings.append(new_building)
 
     # link pads and buildings
     for b in buildings:
-        if b.astrotypes != 0:
+        if sum(b.supply) != 0:
             pads.append(b)
             # print("created " + str(len(pads))+" pods ", file=sys.stderr, flush=True)
 
