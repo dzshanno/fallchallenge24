@@ -265,6 +265,88 @@ def top_suppliers():
     return ts
 
 
+def addactions():
+    global resources, nextpod
+    if resources > 0:
+        for p in pads:
+            if p.conns < 5:
+                print("checking pad " + str(p.id), file=sys.stderr, flush=True)
+                for b in nearest_buildings(p):
+                    for a, num in enumerate(p.supply):
+                        if num != 0:
+                            if b.conns < 5 and p.conns < 5:
+                                if len(actions) > 500:
+                                    print(
+                                        "toomany actions ", file=sys.stderr, flush=True
+                                    )
+                                    return
+
+                                if int(b.type) == int(a):
+                                    tube_exists = False
+                                    for t in tubes:
+                                        if (
+                                            str(t.b1) == str(p.id)
+                                            and str(t.b2) == str(b.id)
+                                        ) or (
+                                            (
+                                                str(t.b2) == str(p.id)
+                                                and str(t.b1) == str(b.id)
+                                            )
+                                        ):
+                                            tube_exists = True
+                                    if tube_exists == False and not blocked_tube(
+                                        tube(p, b, 1)
+                                    ):
+                                        actions.append(
+                                            "TUBE " + str(p.id) + " " + str(b.id)
+                                        )
+                                        tubes.append(tube(p, b, 1))
+                                        resources -= tubecost(tube(p, b, 1))
+                                        print(
+                                            "resources now: " + str(resources),
+                                            file=sys.stderr,
+                                            flush=True,
+                                        )
+
+                                        # TODO reset conns when connection doesnt go through
+                                        p.conns += 1
+                                        b.conns += 1
+
+                                    if resources >= 1000:
+                                        pod_exists = False
+                                        for pp in pods:
+                                            if str(p.id) in str(pp.path) and str(
+                                                b.id
+                                            ) in str(pp.path):
+                                                # print("path between "+str(p.id)+" and "+str(b.id)+ " exists with pod "+str(pp.id)+" path:"+str(pp.path), file=sys.stderr, flush=True)
+                                                pod_exists = True
+                                        if pod_exists == False:
+
+                                            actions.append(
+                                                "POD "
+                                                + str(nextpod)
+                                                + " "
+                                                + str(p.id)
+                                                + " "
+                                                + str(b.id)
+                                                + " "
+                                                + str(p.id)
+                                            )
+                                            pods.append(
+                                                pod(
+                                                    nextpod,
+                                                    str(p.id)
+                                                    + " "
+                                                    + str(b.id)
+                                                    + " "
+                                                    + str(p.id),
+                                                )
+                                            )
+                                            # print("create pod: "+str(nextpod)+" - "+str(p.id)+":"+str(b.id), file=sys.stderr, flush=True)
+                                            resources -= 1000
+                                            nextpod += 1
+
+
 def next_action():
     global resources, nextpod, new_action
     if suppliers():
@@ -490,11 +572,90 @@ while True:
             pads.append(b)
             # print("created " + str(len(pads))+" pods ", file=sys.stderr, flush=True)
 
-    new_action = True
-    while new_action and resources > 0:
-        # print(str(b.id)+" supply:"+str(b.supply), file=sys.stderr, flush=True)
-        pass
-        next_action()
+    if len(buildings) > 21:
+        addactions()
+
+    else:
+
+        new_action = True
+        while new_action and resources > 0:
+            # print(str(b.id)+" supply:"+str(b.supply), file=sys.stderr, flush=True)
+            pass
+            next_action()
+
+    # work to closest buildings first
+    # calculate cost of action
+    # predict value of action
+
+    # add upgrade
+
+    output = ";".join(actions)
+    if output == "":
+        output = "WAIT"
+
+    # Write an action using print
+    # To debug: print("Debug messages...", file=sys.stderr, flush=True)
+
+    # TUBE | UPGRADE | TELEPORT | POD | DESTROY | WAIT
+    print(output)
+
+
+# game loop
+buildings = []
+pads = []
+resources = 0
+nextpod = 1
+while True:
+
+    pods = []
+
+    ports = []
+    tubes = []
+    actions = []
+
+    resources = int(input())
+    num_travel_routes = int(input())
+
+    # reset conns numbers
+    for b in buildings:
+        b.conns = 0
+    for p in pads:
+        p.conns = 0
+
+    for i in range(num_travel_routes):
+        building_id_1, building_id_2, capacity = [int(j) for j in input().split()]
+        if capacity == 0:
+            ports.append(port(building_id_1, building_id_2))
+        else:
+            tubes.append(tube(building_id_1, building_id_2, capacity))
+            for p in pads:
+                if p.id == building_id_1 or p.id == building_id_2:
+                    p.conns += 1
+            for b in buildings:
+                if b.id == building_id_1 or b.id == building_id_2:
+                    b.conns += 1
+
+    num_pods = int(input())
+    for i in range(num_pods):
+        p_props = input().split()
+        pods.append(pod(int(p_props[0]), p_props[2:]))
+
+    num_new_buildings = int(input())
+    for i in range(num_new_buildings):
+        bp = input().split()
+        if bp[0] == "0":
+            pads.append(pad(int(bp[1]), position(int(bp[2]), int(bp[3])), bp[5:]))
+            # print("added pad... with " + str(pads[-1].astros), file=sys.stderr, flush=True)
+        else:
+            buildings.append(
+                building(int(bp[1]), int(bp[0]), position(int(bp[2]), int(bp[3])))
+            )
+            # print("added building...", file=sys.stderr, flush=True)
+
+    # link pads and buildings
+
+    addactions()
+    # add_teleport()
 
     # work to closest buildings first
     # calculate cost of action
