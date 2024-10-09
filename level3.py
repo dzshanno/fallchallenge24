@@ -180,6 +180,14 @@ def cmb(pad, astro) -> building:
     return bestb
 
 
+def suppliers():
+    output = []
+    for b in buildings:
+        if sum(b.supply) != 0:
+            output.append(b)
+    return output
+
+
 def blocked_tube(b1, b2):
     tube_length = dist(b1.pos, b2.pos)
     for b in buildings_within(tube_length, b1):
@@ -211,6 +219,42 @@ def pathexists(b1, b2):
         if (t.b1 == b1 and t.b2 == b2) or (t.b1 == b2 and t.b2 == b1):
             return True
     return False
+
+
+def top_suppliers():
+    # find the one or many buildings with the most astros still to house
+
+    # loop through all the buildings with astros still looking for homes
+    maxsupply = 0
+    maxtype = -1
+    topsuppliers = []
+    for s in suppliers():
+        for num, type in enumerate(s.supply):
+            if num > maxsupply:
+                maxsupply = num
+                maxtype = type
+                topsuppliers = [(s, type, num)]
+            if num == maxsupply:
+                topsuppliers.append((s, type, num))
+
+
+def next_tube() -> tube:
+    # from the top suppliers find the closest home
+
+    for s, type, num in top_suppliers():
+        mindist = 10000
+        bests, bestb = None
+        for b in buildings:
+            if b == s:
+                continue
+            if type in b.demand:
+                newdist = dist(b.pos, s.pos)
+                if newdist < mindist:
+                    mindist = newdist
+                    bests = s
+                    bestb = b
+    best_tube = tube(bestb, bests, 1)
+    return best_tube
 
 
 def nearest_building_for_max_supply2(b1: building):
